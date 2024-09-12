@@ -13,7 +13,7 @@ const Keypad = () => {
         <Button text="COS" onPress={() => handleInput('COS')} />
         <Button text="TAN" onPress={() => handleInput('TAN')} />
         <Button text="COT" onPress={() => handleInput('COT')} />
-        <Button text="MODE" onPress={() => handleInput('MODE')} />
+        <Button text="RAD/DEG" onPress={() => handleInput('RAD/DEG')} />
       </View>
       <View style={styles.row}>
         <Button text="LOG" onPress={() => handleInput('LOG10')} />

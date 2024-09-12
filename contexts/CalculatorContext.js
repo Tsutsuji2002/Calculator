@@ -25,6 +25,7 @@ export const CalculatorProvider = ({ children }) => {
   const handleInput = (input) => {
     let newExpression = expression;
     let newCursorPosition = cursorPosition;
+    let newDisplay = display;
 
     const insertFunction = (func) => {
       newExpression = insertAtCursor(`${func}()`);
@@ -37,6 +38,27 @@ export const CalculatorProvider = ({ children }) => {
       return funcMatch ? funcMatch[0] : null;
     };
 
+    const findFunctionAtCursor = (pos) => {
+      const beforeCursor = newExpression.slice(0, pos);
+      const afterCursor = newExpression.slice(pos);
+      const funcBeforeMatch = beforeCursor.match(/(sin|cos|tan|cot|log10|ln|exp|sqrt)\($/) ||
+                              beforeCursor.match(/(sin|cos|tan|cot|log10|ln|exp|sqrt)\([^(]*$/);
+      const funcAfterMatch = afterCursor.match(/^\)/) ||
+                             afterCursor.match(/^[^)]*\)/);
+      
+      if (funcBeforeMatch) {
+        const funcStart = beforeCursor.lastIndexOf(funcBeforeMatch[0]);
+        const funcEnd = pos + (funcAfterMatch ? funcAfterMatch[0].length : 0);
+        return [funcStart, funcEnd, funcBeforeMatch[1]];
+      }
+      return null;
+    };
+
+    // const isFunctionBeforeCursor = (pos) => {
+    //   const funcMatch = newExpression.slice(0, pos).match(/(sin|cos|tan|cot|log10|ln|exp|sqrt)\($/);
+    //   return funcMatch ? funcMatch[1] : null;
+    // };
+
     const findMatchingParenthesis = (pos) => {
       let depth = 0;
       for (let i = pos; i < newExpression.length; i++) {
@@ -45,6 +67,45 @@ export const CalculatorProvider = ({ children }) => {
         if (depth === 0) return i;
       }
       return -1;
+    };
+
+    // const findFunctionRange = (pos) => {
+    //   const beforeCursor = newExpression.slice(0, pos);
+    //   const funcMatch = beforeCursor.match(/(sin|cos|tan|cot|log10|ln|exp|sqrt)\([^)]*$/);
+    //   if (funcMatch) {
+    //     const funcStart = beforeCursor.lastIndexOf(funcMatch[0]);
+    //     const funcEnd = findMatchingParenthesis(funcStart + funcMatch[1].length);
+    //     return funcEnd !== -1 ? [funcStart, funcEnd + 1] : null;
+    //   }
+    //   return null;
+    // };
+
+    const calculateFunction = (func, arg) => {
+      switch(func.toLowerCase()) {
+        case 'sin': return Math.sin(isRadians ? arg : arg * Math.PI / 180);
+        case 'cos': return Math.cos(isRadians ? arg : arg * Math.PI / 180);
+        case 'tan':
+          if ((arg % 180 === 90 && !isRadians) || (arg % Math.PI === Math.PI / 2 && isRadians)) {
+            throw new Error('Syntax Error');
+          }
+          return Math.tan(isRadians ? arg : arg * Math.PI / 180);
+        case 'cot':
+          if (arg % 180 === 0 && !isRadians || arg % Math.PI === 0 && isRadians) {
+            throw new Error('Syntax Error');
+          }
+          return 1 / Math.tan(isRadians ? arg : arg * Math.PI / 180);
+        case 'log10':
+          if (arg <= 0) throw new Error('Syntax Error');
+          return Math.log10(arg);
+        case 'ln':
+          if (arg <= 0) throw new Error('Syntax Error');
+          return Math.log(arg);
+        case 'exp': return Math.exp(arg);
+        case 'sqrt':
+          if (arg < 0) throw new Error('Syntax Error');
+          return Math.sqrt(arg);
+        default: throw new Error(`Unknown function: ${func}`);
+      }
     };
 
     switch (input) {
@@ -84,28 +145,37 @@ export const CalculatorProvider = ({ children }) => {
         insertFunction(input.toLowerCase());
         break;
       case 'LEFT':
-        const funcAtLeft = isFunctionAtCursor(newCursorPosition);
-        if (funcAtLeft) {
-          newCursorPosition -= funcAtLeft.length + 1;
-        } else if (newCursorPosition > 0) {
-          newCursorPosition = Math.max(0, cursorPosition - 1);
+        if (newCursorPosition > 0) {
+          const funcAtLeft = isFunctionAtCursor(newCursorPosition);
+          if (funcAtLeft) {
+            newCursorPosition -= funcAtLeft.length;
+          } else if (newExpression[newCursorPosition - 1] === ')') {
+            const matchingParenLeft = findMatchingParenthesis(newCursorPosition - 1);
+            if (matchingParenLeft !== -1) {
+              newCursorPosition = matchingParenLeft;
+            } else {
+              newCursorPosition--;
+            }
+          } else {
+            newCursorPosition--;
+          }
         }
         break;
-
       case 'RIGHT':
-        const nextChar = newExpression[cursorPosition];
-        const funcAtCursor = isFunctionAtCursor(cursorPosition);
-        if (funcAtCursor) {
-          newCursorPosition += funcAtCursor.length + 1; 
-        } else if (nextChar === '(') {
-          const matchingParen = findMatchingParenthesis(cursorPosition);
-          if (matchingParen !== -1) {
-            newCursorPosition = matchingParen + 1;
+        if (newCursorPosition < newExpression.length) {
+          const funcMatch = newExpression.slice(newCursorPosition).match(/^(sin|cos|tan|cot|log10|ln|exp|sqrt)\(/);
+          if (funcMatch) {
+            newCursorPosition += funcMatch[0].length;
+          } else if (newExpression[newCursorPosition] === '(') {
+            const matchingParenRight = findMatchingParenthesis(newCursorPosition);
+            if (matchingParenRight !== -1) {
+              newCursorPosition = matchingParenRight + 1;
+            } else {
+              newCursorPosition++;
+            }
           } else {
-            newCursorPosition = Math.min(expression.length, cursorPosition + 1);
+            newCursorPosition++;
           }
-        } else {
-          newCursorPosition = Math.min(expression.length, cursorPosition + 1);
         }
         break;
       case 'UP':
@@ -114,51 +184,58 @@ export const CalculatorProvider = ({ children }) => {
       case '=':
         try {
           const evalExpression = newExpression.replace(/(\w+)\((.*?)\)/g, (match, func, args) => {
-            return calculateFunction(func, parseFloat(args));
+            const argValue = customEval(args);
+            return calculateFunction(func, argValue);
           });
-          const result = customEval(evalExpression);
+  
+          let result = customEval(evalExpression);
+          result = parseFloat(result.toFixed(10));
+  
+          if (result === Infinity || isNaN(result)) {
+            throw new Error('Syntax Error');
+          }
+  
           newDisplay = String(result);
           setAnswer(result);
           setShowResult(true);
           setActiveFunction(null);
         } catch (error) {
-          newDisplay = 'Error';
+          newDisplay = 'Syntax Error';
+          setShowResult(true);
+          setActiveFunction(null);
+          setDisplay(newDisplay);
         }
         break;
       case 'AC':
         newExpression = '';
         newCursorPosition = 0;
-        newDisplay = '0';
+        setDisplay('0');
         setShowResult(false);
         setActiveFunction(null);
         break;
-      case 'DEL':
-        const funcAtCursorForDel = isFunctionAtCursor(cursorPosition);
-        const charBeforeCursor = newExpression[cursorPosition - 1];
-
-        if (charBeforeCursor === ')') {
-          const matchingParenDel = findMatchingParenthesis(cursorPosition - 1);
-          if (matchingParenDel !== -1) {
-            const funcAtLeftDel = isFunctionAtCursor(matchingParenDel);
-            if (funcAtLeftDel) {
-              newExpression = expression.slice(0, matchingParenDel - funcAtLeftDel.length - 1) + expression.slice(cursorPosition);
-              newCursorPosition = matchingParenDel - funcAtLeftDel.length - 1;
+        case 'DEL':
+          if (newCursorPosition > 0) {
+            const functionInfo = findFunctionAtCursor(newCursorPosition);
+            if (functionInfo) {
+              const [funcStart, funcEnd, funcName] = functionInfo;
+              if (newCursorPosition === funcStart + funcName.length + 1 ||
+                  newCursorPosition === funcEnd ||
+                  (newCursorPosition === funcStart + funcName.length + 1 && 
+                   newExpression[newCursorPosition] !== ')')) {
+                newExpression = newExpression.slice(0, funcStart) + newExpression.slice(funcEnd);
+                newCursorPosition = funcStart;
+              } else {
+                newExpression = newExpression.slice(0, newCursorPosition - 1) + newExpression.slice(newCursorPosition);
+                newCursorPosition--;
+              }
             } else {
-              newCursorPosition = cursorPosition;
+              newExpression = newExpression.slice(0, newCursorPosition - 1) + newExpression.slice(newCursorPosition);
+              newCursorPosition--;
             }
           }
-        } else if (cursorPosition > 0) {
-          if (funcAtCursorForDel) {
-            const funcLength = funcAtCursorForDel.length + 1;
-            newExpression = expression.slice(0, cursorPosition - funcLength) + expression.slice(cursorPosition);
-            newCursorPosition = cursorPosition - funcLength;
-          } else {
-            newExpression = expression.slice(0, cursorPosition - 1) + expression.slice(cursorPosition);
-            newCursorPosition = cursorPosition - 1;
-          }
-        }
-        break;
-      case 'MODE':
+          break;
+
+      case 'RAD/DEG':
         setIsRadians(!isRadians);
         break;
       case 'SHIFT':
@@ -179,9 +256,13 @@ export const CalculatorProvider = ({ children }) => {
   };
 
   const customEval = (expr) => {
-    expr = expr.replace(/(\d+(?:\.\d+)?)\s*\^\s*(\d+(?:\.\d+)?)/g, '$1 ** $2');
-    expr = expr.replace(/(\d+(?:\.\d+)?)\s*\*\*\s*(\d+(?:\.\d+)?)/g, 'Math.pow($1, $2)');
-    return Function('"use strict";return (' + expr + ')')();
+    expr = expr.replace(/(\d+(?:\.\d+)?)\s*\^\s*(\d+(?:\.\d+)?)/g, 'Math.pow($1, $2)');
+  
+    if (/\/\s*0(?!\.)/.test(expr)) {
+      throw new Error('Syntax Error');
+    }
+  
+    return new Function(`return ${expr}`)();
   };
   
   const value = {

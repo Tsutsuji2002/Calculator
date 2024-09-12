@@ -17,7 +17,7 @@ const themes = {
 };
 
 const Header = () => {
-  const { theme, handleThemeChange } = useContext(CalculatorContext);
+  const { theme, handleThemeChange, isRadians } = useContext(CalculatorContext);
 
   return (
     <View style={[styles.header, { backgroundColor: themes[theme].background }]}>
@@ -25,7 +25,7 @@ const Header = () => {
         <Icon name={theme === 'dark' ? 'sunny' : 'moon'} size={24} color={themes[theme].iconColor} />
       </TouchableOpacity>
       <Text style={[styles.titleText, { color: themes[theme].text }]}>Calculator</Text>
-      <Text style={[styles.timeText, { color: themes[theme].text }]}>14:2</Text>
+      <Text style={[styles.modeText, { color: themes[theme].text }]}>{isRadians ? 'RAD' : 'DEG'}</Text>
     </View>
   );
 };
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  timeText: {
+  modeText: {
     fontSize: 16,
   },
 });
