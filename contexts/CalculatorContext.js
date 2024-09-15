@@ -256,7 +256,14 @@ export const CalculatorProvider = ({ children }) => {
   };
 
   const customEval = (expr) => {
-    expr = expr.replace(/(\d+(?:\.\d+)?)\s*\^\s*(\d+(?:\.\d+)?)/g, 'Math.pow($1, $2)');
+    expr = expr.replace(/(\w+)\((.*?)\)/g, (match, func, args) => {
+      const argValue = customEval(args);
+      return calculateFunction(func, argValue);
+    });
+  
+    expr = expr.replace(/(\d+(?:\.\d+)?|\))\s*\^\s*(\d+(?:\.\d+)?)/g, (match, base, exp) => {
+      return `Math.pow(${base}, ${exp})`;
+    });
   
     if (/\/\s*0(?!\.)/.test(expr)) {
       throw new Error('Syntax Error');
@@ -264,6 +271,7 @@ export const CalculatorProvider = ({ children }) => {
   
     return new Function(`return ${expr}`)();
   };
+  
   
   const value = {
     display,

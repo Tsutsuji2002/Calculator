@@ -5,7 +5,7 @@ import Display from './components/Display';
 import Keypad from './components/Keypad';
 import { CalculatorProvider } from './contexts/CalculatorContext';
 import { SafeAreaView } from 'react-native';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
 const App = () => {
   const { width } = Dimensions.get('window');
@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     padding: wp('1%'),
-    marginTop: wp('8%'),
+    marginTop: wp('2%'),
   },
 });
 

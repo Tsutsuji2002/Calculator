@@ -87,10 +87,11 @@ const Display = () => {
 
 const styles = StyleSheet.create({
   display: {
+    flex: 0.25,
     backgroundColor: '#f0f0f0',
     padding: 20,
     alignItems: 'flex-end',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
     minHeight: 120,
   },
   expressionText: {
